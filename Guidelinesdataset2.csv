@@ -1,0 +1,58 @@
+import numpy as np
+import cv2
+import tensorflow as tf
+from tensorflow import keras
+import time
+
+# Setting up config for GPU usage
+physical_devices = tf.config.list_physical_devices("GPU")
+if physical_devices:  # Check if there are any physical devices available
+    tf.config.experimental.set_memory_growth(physical_devices[0], True)
+else:
+    print("No GPU devices found. Using CPU.")
+tf.config.experimental.set_memory_growth(physical_devices[0], True)
+
+# Using Har-cascade classifier from OpenCV
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+
+# Loading the trained model for prediction purpose
+model = keras.models.load_model('/content/my_model (1).h5')
+
+# Function to detect drowsiness
+def detect_drowsiness(frame):
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+
+    for (x, y, w, h) in faces:
+        roi_gray = gray[y:y + w, x:x + w]
+        roi_color = frame[y:y + h, x:x + w]
+
+        centx, centy = roi_color.shape[:2]
+        centx //= 2
+        centy //= 2
+        eye_1 = roi_color[centy - 40: centy, centx - 70: centx]
+        eye_1 = cv2.resize(eye_1, (86, 86))
+        eye_2 = roi_color[centy - 40: centy, centx: centx + 70]
+        eye_2 = cv2.resize(eye_2, (86, 86))
+
+        preds_eye1 = model.predict(np.expand_dims(eye_1, axis=0))
+        preds_eye2 = model.predict(np.expand_dims(eye_2, axis=0))
+        e1, e2 = np.argmax(preds_eye1), np.argmax(preds_eye2)
+
+        if e1 == 1 or e2 == 1:
+            pass
+        else:
+            return 'Drowsy'
+
+    return 'Awake'
+
+# Capture a photo
+filename = take_photo()
+print('Saved to {}'.format(filename))
+
+# Load the captured image for drowsiness detection
+captured_image = cv2.imread(filename)
+
+# Check for drowsiness using the captured image
+drowsiness_status = detect_drowsiness(captured_image)
+print(f"Drowsiness Status: {drowsiness_status}")
